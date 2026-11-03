@@ -211,18 +211,23 @@
   .tip .t-row span.k{display:flex; align-items:center; gap:6px; color:var(--text-muted);}
   .tip .t-row i{width:9px; height:9px; border-radius:50%; display:block;}
   .tip .t-row b{font-weight:600; font-variant-numeric:tabular-nums;}
-  .legend{display:flex; flex-wrap:wrap; gap:8px 18px; margin-top:12px;}
+  .chart .hit{fill:transparent;}
+  .chart .hit:hover{fill:var(--grid);}
+  .seg{cursor:pointer; transition:opacity .15s;}
+  .seg:hover{opacity:.8;}
+  .brow[data-tip]:hover .btrack{outline:1px solid var(--text-faint);}
+  .legend{position:relative; display:flex; flex-wrap:wrap; gap:8px 18px; margin-top:12px;}
   .legend .item{display:flex; align-items:center; gap:8px; font-size:13px; color:var(--text);}
   .legend .sw{width:11px; height:11px; border-radius:3px; flex:none;}
   .legend .item b{font-weight:600; font-variant-numeric:tabular-nums;}
   .legend .item span.mut{color:var(--text-muted);}
-  .donut-wrap{display:flex; flex-direction:column; align-items:center; gap:6px;}
+  .donut-wrap{position:relative; display:flex; flex-direction:column; align-items:center; gap:6px;}
   .donut-wrap svg{width:min(100%,250px); height:auto; overflow:visible;}
   .donut-center .big{font-size:30px; font-weight:400; fill:var(--text); font-variant-numeric:tabular-nums;}
   .donut-center .small{font-size:11px; fill:var(--text-muted);}
 
   /* barras horizontales (bancos) */
-  .hbars{display:flex; flex-direction:column; gap:9px;}
+  .hbars{position:relative; display:flex; flex-direction:column; gap:9px;}
   .hbars .brow{display:grid; grid-template-columns:84px minmax(0,1fr) 120px; align-items:center; gap:10px;}
   @media (max-width:520px){.hbars .brow{grid-template-columns:62px minmax(0,1fr) 92px;}}
   .hbars .blbl{font-size:13px; font-weight:600;}
@@ -278,7 +283,7 @@
         </div>
         <div class="meta-block">
           <div class="meta-row"><span class="dot"></span><span>Con datos al <b id="dataAsOf"></b></span></div>
-          <div class="meta-row"><span>Actualizado el <b id="updatedAt">3 nov 2026, 14:28</b></span></div>
+          <div class="meta-row"><span>Actualizado el <b id="updatedAt">3 nov 2026, 14:37</b></span></div>
         </div>
       </div>
     </div>
@@ -539,6 +544,25 @@ function drawLine(host, cfg){
   rect.addEventListener('pointerleave', hide);
 }
 
+const tipHtml = (title, rows) => '<div class="t-date">'+title+'</div>'+rows.map(r => '<div class="t-row"><span class="k">'+(r[2]?'<i style="background:'+r[2]+'"></i>':'')+r[0]+'</span><b>'+r[1]+'</b></div>').join('');
+function attachTip(host){
+  if(host._tip) return; host._tip = true;
+  const show = e => {
+    const el = e.target.closest ? e.target.closest('[data-tip]') : null;
+    let tip = host.querySelector('.tip');
+    if(!tip){ tip = document.createElement('div'); tip.className = 'tip'; host.appendChild(tip); }
+    if(!el || !host.contains(el)){ tip.style.display = 'none'; return; }
+    tip.innerHTML = el.getAttribute('data-tip'); tip.style.display = 'block';
+    const hb = host.getBoundingClientRect(), tw = tip.offsetWidth, th = tip.offsetHeight;
+    let x = e.clientX-hb.left+14, y = e.clientY-hb.top+14;
+    if(x+tw > hb.width) x = Math.max(0, e.clientX-hb.left-tw-14);
+    if(y+th > hb.height) y = Math.max(0, e.clientY-hb.top-th-14);
+    tip.style.left = x+'px'; tip.style.top = y+'px';
+  };
+  host.addEventListener('pointermove', show); host.addEventListener('pointerdown', show);
+  host.addEventListener('pointerleave', () => { const t = host.querySelector('.tip'); if(t) t.style.display = 'none'; });
+}
+
 function drawVar(host, R){
   const data = R.map((r,i) => ({s:r.s, v: r.s===MIN ? 0 : r.dv}));
   if(!data.length){ host.innerHTML = '<div class="empty">Sin datos.</div>'; return; }
@@ -556,9 +580,15 @@ function drawVar(host, R){
   data.forEach(d => {
     if(!d.v) return;
     const y = Y(d.v), y0 = Y(0), up = d.v > 0;
-    s += '<rect x="'+(X(d.s)-bw/2).toFixed(1)+'" y="'+Math.min(y,y0).toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+Math.max(1,Math.abs(y-y0)).toFixed(1)+'" rx="1" style="fill:var('+(up?'--c-up':'--c-down')+')"><title>'+fD(d.s)+': '+fS(d.v)+' Bs</title></rect>';
+    s += '<rect x="'+(X(d.s)-bw/2).toFixed(1)+'" y="'+Math.min(y,y0).toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+Math.max(1,Math.abs(y-y0)).toFixed(1)+'" rx="1" style="fill:var('+(up?'--c-up':'--c-down')+')"/>';
   });
-  host.innerHTML = s+'</svg>';
+  const slotW = Math.max(1, (w-ml-mr)/Math.max(1,data.length-1));
+  data.forEach((d,i) => {
+    const r = R[i], pc = d.v ? d.v/(r.ov-r.dv)*100 : 0;
+    const tip = tipHtml(fD(d.s), [['Variación', d.v ? fS(d.v)+' Bs' : 'Sin cambio', d.v>0?'var(--c-up)':d.v<0?'var(--c-down)':'var(--text-faint)'], ['Variación %', fP(pc,2)], ['Oficial', fN(r.ov)+' Bs']]);
+    s += '<rect class="hit" x="'+(X(d.s)-slotW/2).toFixed(1)+'" y="'+mt+'" width="'+slotW.toFixed(1)+'" height="'+(h-mt-mb)+'" data-tip="'+esc(tip)+'"/>';
+  });
+  host.innerHTML = s+'</svg>'; attachTip(host);
 }
 
 function drawDonut(host, legend, R){
@@ -574,12 +604,12 @@ function drawDonut(host, legend, R){
   const r0 = 70, cw = 24; let off = 0, s = '<svg viewBox="0 0 200 200" role="img" aria-label="Días por nivel del tipo de cambio oficial"><g transform="rotate(-90 100 100)">';
   for(const b of B){
     const frac = b.n/tot*100;
-    s += '<circle cx="100" cy="100" r="'+r0+'" fill="none" pathLength="100" style="stroke:'+b.c+';stroke-width:'+cw+'" stroke-dasharray="'+Math.max(0,frac-(B.length>1?.6:0)).toFixed(2)+' '+(100-Math.max(0,frac-(B.length>1?.6:0))).toFixed(2)+'" stroke-dashoffset="'+(-off).toFixed(2)+'"><title>'+b.l+': '+b.n+' días ('+fN(frac,1)+'%)</title></circle>';
+    s += '<circle cx="100" cy="100" r="'+r0+'" fill="none" pathLength="100" style="stroke:'+b.c+';stroke-width:'+cw+'" stroke-dasharray="'+Math.max(0,frac-(B.length>1?.6:0)).toFixed(2)+' '+(100-Math.max(0,frac-(B.length>1?.6:0))).toFixed(2)+'" stroke-dashoffset="'+(-off).toFixed(2)+'" class="seg" data-tip="'+esc(tipHtml(b.l,[['Días',b.n,b.c],['% del periodo',fN(frac,1)+'%']]))+'"/>';
     off += frac;
   }
   s += '</g><g class="donut-center"><text class="big" x="100" y="103" text-anchor="middle">'+tot+'</text><text class="small" x="100" y="122" text-anchor="middle">días</text></g></svg>';
-  host.innerHTML = s;
-  legend.innerHTML = B.map(b => '<div class="item"><span class="sw" style="background:'+b.c+'"></span><span>'+b.l+'</span><span class="mut" style="margin-left:auto"><b>'+b.n+'</b> · '+fN(b.n/tot*100,1)+'%</span></div>').join('');
+  host.innerHTML = s; attachTip(host.parentElement); attachTip(legend);
+  legend.innerHTML = B.map(b => '<div class="item" data-tip="'+esc(tipHtml(b.l,[['Días',b.n,b.c],['% del periodo',fN(b.n/tot*100,1)+'%']]))+'"><span class="sw" style="background:'+b.c+'"></span><span>'+b.l+'</span><span class="mut" style="margin-left:auto"><b>'+b.n+'</b> · '+fN(b.n/tot*100,1)+'%</span></div>').join('');
 }
 
 function monthly(R){
@@ -601,13 +631,15 @@ function drawMonth(host, M){
   const every = Math.ceil(M.length/Math.max(1,Math.floor((w-ml-mr)/46)));
   M.forEach((m,i) => {
     const cx = ml + slot*(i+.5), cur = i===M.length-1;
-    s += '<rect x="'+(cx-bw/2).toFixed(1)+'" y="'+Y(m.avg).toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+(h-mb-Y(m.avg)).toFixed(1)+'" rx="3" style="fill:'+(cur?'var(--accent)':'var(--c-bar)')+'"><title>'+fM(m.s)+' · promedio '+fN(m.avg)+' · mín '+fN(m.min)+' · máx '+fN(m.max)+' ('+m.n+' días)</title></rect>';
+    s += '<rect x="'+(cx-bw/2).toFixed(1)+'" y="'+Y(m.avg).toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+(h-mb-Y(m.avg)).toFixed(1)+'" rx="3" style="fill:'+(cur?'var(--accent)':'var(--c-bar)')+'"/>';
     if(m.max !== m.min) s += '<line x1="'+cx+'" x2="'+cx+'" y1="'+Y(m.max)+'" y2="'+Y(m.min)+'" style="stroke:var(--text);stroke-width:1.2;opacity:.55"/>';
     if(bw >= 30) s += '<text x="'+cx+'" y="'+(Y(Math.max(m.max,m.avg))-6)+'" text-anchor="middle" style="fill:var(--text);font-weight:600">'+fN(m.avg)+'</text>';
     if(i%every===0) s += '<text x="'+cx+'" y="'+(h-12)+'" text-anchor="middle">'+fM(m.s)+'</text>';
+    const tip = tipHtml(mLabel(m.k), [['Promedio', fN(m.avg)+' Bs', cur?'var(--accent)':'var(--c-bar)'], ['Mínimo', fN(m.min)+' Bs'], ['Máximo', fN(m.max)+' Bs'], ['Apertura', fN(m.first)+' Bs'], ['Cierre', fN(m.last)+' Bs'], ['Días con dato', m.n]]);
+    s += '<rect class="hit" x="'+(ml+slot*i).toFixed(1)+'" y="'+mt+'" width="'+slot.toFixed(1)+'" height="'+(h-mt-mb)+'" data-tip="'+esc(tip)+'"/>';
   });
   s += '<line class="axis-line" x1="'+ml+'" x2="'+(w-mr)+'" y1="'+(h-mb)+'" y2="'+(h-mb)+'"/></svg>';
-  host.innerHTML = s;
+  host.innerHTML = s; attachTip(host);
 }
 
 /* ---------- secciones ---------- */
@@ -678,7 +710,13 @@ function renderBCB(){
   desc.textContent = 'Corte BCB al '+fD(r[0])+' · se omiten bancos sin operaciones (valor 0)'+(base?' · oficial ese día: '+fN(base.ov)+' Bs':'');
   const items = cols.map((c,i) => ({c, v:r[i+1]})).filter(x => x.v>0).sort((p,q) => q.v-p.v);
   const mx = Math.max(...items.map(x => x.v));
-  host.innerHTML = items.map(x => '<div class="brow"><span class="blbl">'+esc(x.c)+'</span><div class="btrack"><div class="bfill'+(x.c==='Total bancos'?' total':'')+'" style="width:'+(x.v/mx*100).toFixed(1)+'%"></div></div><span class="bval">'+fN(x.v)+(base?' · '+fS(x.v-base.ov)+' vs of.':'')+'</span></div>').join('');
+  host.innerHTML = items.map(x => {
+    const rows = [['TC venta', fN(x.v)+' Bs']];
+    if(base){ const df = x.v-base.ov; rows.push(['Oficial ese día', fN(base.ov)+' Bs'], ['Diferencia', fS(df)+' Bs'], ['Diferencia %', fP(df/base.ov*100,2)]); }
+    const tip = tipHtml(x.c+' · '+fD(r[0]), rows);
+    return '<div class="brow" data-tip="'+esc(tip)+'"><span class="blbl">'+esc(x.c)+'</span><div class="btrack"><div class="bfill'+(x.c==='Total bancos'?' total':'')+'" style="width:'+(x.v/mx*100).toFixed(1)+'%"></div></div><span class="bval">'+fN(x.v)+(base?' · '+fS(x.v-base.ov)+' vs of.':'')+'</span></div>';
+  }).join('');
+  attachTip(host);
 }
 function renderDetail(R){
   document.getElementById('det-desc').textContent = R.length+' días · del más reciente al más antiguo';
