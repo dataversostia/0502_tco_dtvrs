@@ -1,0 +1,9 @@
+{
+ "version": 1,
+ "moneda": "Bs por USD",
+ "fuente": "Banco Central de Bolivia (TCO venta)",
+ "formato_fecha": "dd-mm-aaaa",
+ "fecha": "11-11-2026",
+ "tco_bcb": 11.71,
+ "generado": "11-11-2026 09:54"
+}
