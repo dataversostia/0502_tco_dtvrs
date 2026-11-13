@@ -3,7 +3,7 @@
  "moneda": "Bs por USD",
  "fuente": "Banco Central de Bolivia (TCO venta)",
  "formato_fecha": "dd-mm-aaaa",
- "generado": "12-11-2026 08:29",
+ "generado": "13-11-2026 08:29",
  "serie": [
   {
    "fecha": "05-08-2024",
@@ -3324,6 +3324,10 @@
   {
    "fecha": "12-11-2026",
    "tco_bcb": 11.7
+  },
+  {
+   "fecha": "13-11-2026",
+   "tco_bcb": 11.67
   }
  ]
 }
